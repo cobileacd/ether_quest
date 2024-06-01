@@ -112,6 +112,8 @@ const TINY =
     },
 };
 
+let INITIALIZATION_DONE = false;
+
 // TODO: re-think this.
 const helper = {
 
@@ -262,6 +264,22 @@ let idle_action, walk_action, run_action, death_action, receive_hit_action, atta
 let idle_weight, walk_weight, run_weight, death_weight, attack_weight;
 let actions;
 
+function toggleMorphAttributes(obj, restore) {
+  obj.traverse(c => {
+    if (c.geometry) {
+      if (restore) {
+        c.geometry.morphAttributes =
+          c.geometry.userData.morphAttributes || {};
+        delete c.geometry.userData.morphAttributes;
+      } else {
+        c.geometry.userData.morphAttributes = c.geometry.morphAttributes;
+        c.geometry.morphAttributes = {};
+      }
+      c.geometry.boundingBox = null;
+    }
+  });
+}
+
 // TODO: Move this to player's class
 function InitPlayerAnimator()
 {
@@ -282,7 +300,16 @@ function InitPlayerAnimator()
                         });
                 model.children[0].children[1].material = material;
 
-                model.scale.set(2, 2, 2);
+                const customBoundingBox = new THREE.Box3(
+                        new THREE.Vector3(-2, -2, -2),
+                        new THREE.Vector3(2, 2, 2)
+                );
+                model.traverse(function (object) {
+                        if (object.isMesh) {
+                               // applyCustomBoundingBox(object, customBoundingBox);
+                        }
+                });
+
                 //model.position.set(0, -0.65, 0);
                 sceneElements.sceneGraph.add(model);
 
@@ -310,16 +337,51 @@ function InitPlayerAnimator()
                 actions = [ idle_action, walk_action, run_action, death_action, attack_action ];
 
                 //@fixit: for some reason position is not set correctly without sleeping
-                await new Promise(r => setTimeout(r, 1000)); 
+                //await new Promise(r => setTimeout(r, 1000)); 
                 const new_position = sceneElements.player.serialized_position;
                 model.position.copy(new THREE.Vector3(new_position.x, new_position.y, new_position.z));
                 sceneElements.player.object = model;
+                //toggleMorphAttributes(model, false);
+                model.scale.set(2, 2, 2);
+                //toggleMorphAttributes(model, true);
                 //sceneElements.player.object.position.copy(sceneElements.player.serialized_position);
 
                 //idle_action.play();
                 //prepare_cross_fade(idle_action, walk_action, 0.5);
                 activate_all_actions();
+                INITIALIZATION_DONE = true;
         });
+}
+
+function applyCustomBoundingBox(mesh, customBoundingBox) {
+    if (!mesh.geometry) return;
+
+    // Update the geometry's bounding box with the custom bounding box
+    mesh.geometry.boundingBox = customBoundingBox.clone();
+
+    // Optionally, update the bounding sphere based on the custom bounding box
+    const boundingSphere = new THREE.Sphere();
+    customBoundingBox.getBoundingSphere(boundingSphere);
+    mesh.geometry.boundingSphere = boundingSphere;
+
+    console.log('Applied Custom Bounding Box:', mesh.geometry.boundingBox);
+    console.log('Applied Custom Bounding Sphere:', mesh.geometry.boundingSphere);
+}
+
+function recalculateBoundingBox(mesh) {
+    if (!mesh.geometry) return;
+
+    mesh.geometry.computeBoundingBox();
+    const box = mesh.geometry.boundingBox;
+
+    mesh.geometry.computeBoundingSphere();
+    const sphere = mesh.geometry.boundingSphere;
+
+    console.log('Recalculated Bounding Box:', box);
+    console.log('Recalculated Bounding Sphere:', sphere);
+
+    mesh.geometry.boundingBox = box;
+    mesh.geometry.boundingSphere = sphere;
 }
 
 function init_anim()
@@ -1734,9 +1796,11 @@ function check_collisions() {
 
         for (let i = 0; i < colliders.length; i++) {
                 const obj1 = colliders[i];
+                const y1 = obj1.object.position.y;
 
                 for (let j = i + 1; j < colliders.length; j++) {
                         const obj2 = colliders[j];
+                        const y2 = obj2.object.position.y;
 
                         // Check collisions between circles
                         if (obj1.collider_component.shape === "circle" && obj2.collider_component.shape === "circle") {
@@ -1761,8 +1825,8 @@ function check_collisions() {
                                 const size1 = new THREE.Vector3();
                                 const size2 = new THREE.Vector3();
                                 // Box from object
-                                const box1 = new THREE.Box3().setFromObject(obj1.object); 
-                                const box2 = new THREE.Box3().setFromObject(obj2.object); 
+                                const box1 = new THREE.Box3().setFromObject(obj1.object, true); 
+                                const box2 = new THREE.Box3().setFromObject(obj2.object, true); 
                                 box1.getSize(size1);
                                 box2.getSize(size2);
 
@@ -1809,6 +1873,9 @@ function check_collisions() {
                                         }
                                 }
                         }
+
+                        obj1.object.position.setY(y1);
+                        obj2.object.position.setY(y2);
                 }
         }
 }
@@ -1848,6 +1915,11 @@ var counter = Date.now();
 var last_counter = counter; 
 function computeFrame(time) 
 {
+        if (!INITIALIZATION_DONE) {
+                requestAnimationFrame(computeFrame);
+                return;
+        }
+
         stats.begin();
 
         counter = Date.now();
