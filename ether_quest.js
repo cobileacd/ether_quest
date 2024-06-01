@@ -8,12 +8,15 @@
 */
 
 /* TODO(@cobileacd):
+ * - Integrate models for enemies (with animations).
+ * - Optmize performance. 
+ * - Fix player camera (follow player when moved with mouse).
  * - Find a way to save animators. 
- * - Fix player movement.
+ * - Fix player movement. (DONE)
  * - Add lights to scene, make possibly to choose intensity and color.
  * - Instead of removing/adding helpers each time we switch between show and update, just switch visibility true/false.
      different from when saving because we don't want them in scene graph.
- * - On object properties display real world position coords instead of local ones.
+ * - On object properties display real world position coords instead of local ones. (DONE)
  * - Fix lights... (DONE)
  * - Fix bug where spot light helpers don't have correct reference to its light. (DONE)
  * - Move clone/delete logic to editor's class.
@@ -37,7 +40,9 @@ import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import Stats from 'stats.js';
 
+//--------------------------------------------------------------------------------------------------------
 // TINY Engine API
+//--------------------------------------------------------------------------------------------------------
 // TODO(@cobileacd): description.
 //  This contains the main engine API that abstracts away the logical components used
 //  in a typical game.
@@ -88,8 +93,7 @@ const TINY =
         constructor(render_component, transform, name, collider) 
         {
             this.render_component = render_component;
-            this.transform = transform;
-            this.object = this.render_component.object; // three.js Object3D
+            this.object = this.render_component; // three.js Object3D
             this.name = name;
             this.collider_component = collider
         }
@@ -148,7 +152,9 @@ const helper = {
     },
 };
 
+//--------------------------------------------------------------------------------------------------------
 /* INPUT */
+//--------------------------------------------------------------------------------------------------------
 // input = key[old_state, new_state]
 const input = {};
 
@@ -247,28 +253,37 @@ document.addEventListener('mousemove', (event) =>
         });
 /* END INPUT */
 
+//--------------------------------------------------------------------------------------------------------
 /* ANIMATION */
+//--------------------------------------------------------------------------------------------------------
+
 let model, skeleton, mixer;
-let idle_action, walk_action, run_action;
-let idle_weight, walk_weight, run_weight;
+let idle_action, walk_action, run_action, death_action, receive_hit_action, attack_action;
+let idle_weight, walk_weight, run_weight, death_weight, attack_weight;
 let actions;
 
-function init_anim()
+// TODO: Move this to player's class
+function InitPlayerAnimator()
 {
         const loader = new GLTFLoader();
-        loader.load('data/Soldier.glb', function ( gltf ) {
+        loader.load('data/Anne.glb', async function ( gltf ) {
                 model = gltf.scene;
-                sceneElements.soldier = model;
 
                 model.name = 'anim';
 
                 model.traverse(function (object) {
                         if (object.isMesh) object.castShadow = true;
                 });
-                console.log(model);
 
-                model.scale.set(3, 3, 3);
-                model.position.set(0, -0.65, 0);
+                // @fixit: fix metallic look
+                const material = new THREE.MeshStandardMaterial(
+                        {
+                                map: model.children[0].children[1].material.map
+                        });
+                model.children[0].children[1].material = material;
+
+                model.scale.set(2, 2, 2);
+                //model.position.set(0, -0.65, 0);
                 sceneElements.sceneGraph.add(model);
 
                 skeleton = new THREE.SkeletonHelper(model);
@@ -280,17 +295,35 @@ function init_anim()
                 mixer = new THREE.AnimationMixer(model);
                 sceneElements.mixers.push(mixer);
 
-                idle_action = mixer.clipAction(animations[0]);
-                walk_action = mixer.clipAction(animations[3]);
-                run_action = mixer.clipAction(animations[1]);
+                console.log(gltf.animations);
 
-                actions = [ idle_action, walk_action, run_action ];
+                death_action = mixer.clipAction(animations[0]);
+                idle_action = mixer.clipAction(animations[3]);
+                walk_action = mixer.clipAction(animations[4]);
+                run_action = mixer.clipAction(animations[9]);
+                attack_action = mixer.clipAction(animations[10]);
+
+                attack_action.setLoop(THREE.LoopOnce);
+
+                console.log(attack_action);
+
+                actions = [ idle_action, walk_action, run_action, death_action, attack_action ];
+
+                //@fixit: for some reason position is not set correctly without sleeping
+                await new Promise(r => setTimeout(r, 1000)); 
+                const new_position = sceneElements.player.serialized_position;
+                model.position.copy(new THREE.Vector3(new_position.x, new_position.y, new_position.z));
+                sceneElements.player.object = model;
+                //sceneElements.player.object.position.copy(sceneElements.player.serialized_position);
 
                 //idle_action.play();
                 //prepare_cross_fade(idle_action, walk_action, 0.5);
                 activate_all_actions();
         });
+}
 
+function init_anim()
+{
         const fbx_loader = new FBXLoader();
         fbx_loader.load('data/Sparrow_Animations.fbx', function (object) {
                 sceneElements.sparrow = object;
@@ -322,56 +355,6 @@ function init_anim()
                 idle_c.timeScale = 0.5;
                 idle_c.play();
         });
-
-        //fbx_loader.load('data/untitled.fbx', function (object) {
-                /*
-                const texture_loader = new THREE.TextureLoader();
-                const material = new THREE.MeshStandardMaterial(
-                        {
-                                map: texture_loader.load('data/Kawaii Slimes/Textures/Face/Face_00.psd')
-                        });
-                object.children[1].material = material;
-                */ 
-               /*
-                console.log(object);
-                const material = new THREE.MeshStandardMaterial(
-                        {
-                                color: object.children[0].material[0].color
-                        });
-                const material2 = new THREE.MeshStandardMaterial(
-                        {
-                                color: object.children[0].material[1].color,
-                                alphaMap: object.children[0].material[1].alphaMap,
-                                map: object.children[0].material[1].map,
-                                blendDst: object.children[0].material[1].blendDst
-                        });
-                const shader = convertPhongToStandard(object.children[0].material[1]);
-                object.children[0].material = [material, shader]; 
-                console.log(object);
-
-
-                //object.position.set(-11, -1, -14);
-
-                sceneElements.sceneGraph.add(object);
-                */
-                //object.scale.set(5, 5, 5);
-
-                /*
-                const skeleton = new THREE.SkeletonHelper(object);
-                skeleton.visible = true;
-                sceneElements.sceneGraph.add(skeleton);
-
-                const animations = object.animations;
-                const mixer = new THREE.AnimationMixer(object);
-                sceneElements.mixers.push(mixer);
-
-                console.log(animations);
-                const idle_c = mixer.clipAction(animations[4]);
-
-                idle_c.timeScale = 0.5;
-                */
-                //idle_c.play();
-        //});
 }
 
 function convertPhongToStandard(phongMaterial) {
@@ -405,47 +388,7 @@ function animate()
                 idle_weight = idle_action.getEffectiveWeight();
                 walk_weight = walk_action.getEffectiveWeight();
                 run_weight = run_action.getEffectiveWeight();
-        }
-
-        if (was_button_down('KeyQ'))
-        {
-                if (idle_weight == 1)
-                        prepare_cross_fade(idle_action, walk_action, 0.5);
-        }
-        else if (was_button_down('KeyE'))
-        {
-                if (walk_weight == 1)
-                        prepare_cross_fade(walk_action, run_action, 1);
-        }
-
-        if (model)
-        {
-                const player = sceneElements.player;
-                const camera = sceneElements.cameraObj;
-
-                const angle_y_cam_dir = Math.atan2(
-                        (camera.position.x - player.object.position.x),
-                        (camera.position.z - player.object.position.z)
-                );
-
-                const direction_offset = player.direction_offset;
-
-                const rotate_quat = new THREE.Quaternion();
-                const rotate_angle = new THREE.Vector3(0, 1, 0);
-
-                rotate_quat.setFromAxisAngle(rotate_angle, angle_y_cam_dir + direction_offset);
-                model.quaternion.rotateTowards(rotate_quat, 0.2);
-
-                const walk_direction = new THREE.Vector3();
-                camera.getWorldDirection(walk_direction);
-                walk_direction.y = 0;
-                walk_direction.normalize();
-                walk_direction.applyAxisAngle(rotate_angle, direction_offset);
-
-                // TODO: @fixit
-                let old_y = model.position.y;
-                model.position.copy(player.object.position);
-                model.position.y = old_y;
+                attack_weight = attack_action.getEffectiveWeight();
         }
 }
 
@@ -462,6 +405,12 @@ function execute_cross_fade(start_action, end_action, duration)
         end_action.time = 0;
 
         start_action.crossFadeTo(end_action, duration, true);
+}
+
+function blend_animation(start_action, end_action) 
+{
+        set_weight(start_action, 0.5);
+        set_weight(end_action, 0.5);
 }
 
 function prepare_cross_fade(start_action, end_action, duration)
@@ -499,11 +448,23 @@ function synchronize_cross_fade(start_action, end_action, duration)
         }
 }
 
+function clear_weights()
+{
+        set_weight(idle_action, 0);
+        set_weight(walk_action, 0);
+        set_weight(run_action, 0);
+        set_weight(attack_action, 0);
+        set_weight(death_action, 0);
+
+}
+
 function activate_all_actions()
 {
         set_weight(idle_action, 1);
         set_weight(walk_action, 0);
         set_weight(run_action, 0);
+        set_weight(attack_action, 0);
+        set_weight(death_action, 0);
 
         actions.forEach(function (action) {
                 action.play();
@@ -518,6 +479,9 @@ function unpause_all_actions()
 }
 /* END ANIMATION */
 
+//--------------------------------------------------------------------------------------------------------
+/* LIGHTING */
+//--------------------------------------------------------------------------------------------------------
 function add_light(x, y, z)
 {
         const spotLight = new THREE.SpotLight('rgb(255, 255, 255)', 0.5);
@@ -568,7 +532,6 @@ function add_point_light(x, y, z, color)
 /* CAMERA */
 //--------------------------------------------------------------------------------------------------------
 
-let DEBUG_CAMERA = true;
 let ENABLE_DEBUG_CAMERA = true;
 class classCamera
 {
@@ -598,7 +561,7 @@ class classCamera
                 //const x = TINY.clamp(player_pos.x, -this.max_width, this.max_width);
                 //const z = TINY.clamp(player_pos.z, -this.max_height, this.max_height);
 
-                if (DEBUG_CAMERA && ENABLE_DEBUG_CAMERA)
+                if (ENABLE_DEBUG_CAMERA)
                 {
                         if (is_button_down('KeyW'))
                         {
@@ -667,7 +630,7 @@ class classCamera
 
                         if (is_button_down('Space')) 
                         {
-                                this.charge_animation(player_pos, dt);
+                                //this.charge_animation(player_pos, dt);
                         }
                         else
                         {
@@ -708,6 +671,9 @@ class classPlayer extends TINY.gameObject
                 this.velocity = 12;
                 this.direction = new THREE.Vector3();
                 this.direction_offset = 0;
+
+                // Used for serialization
+                this.serialized_position = new THREE.Vector3();
         }
 
         update(dt)
@@ -715,51 +681,55 @@ class classPlayer extends TINY.gameObject
                 if (!ENABLE_DEBUG_CAMERA)
                 {
                         // @fixit
-                        this.object.visible = false;
+                        this.object.visible = true;
 
-                        this.direction = new THREE.Vector3();
-                        if (is_button_down('KeyW'))
-                        {
-                                this.direction.z = -1;
-                                this.direction_offset = 0;
+                        this.direction = new THREE.Vector3(0, 0, 0);
+                        if (is_button_down('KeyW')) {
+                        this.direction.z = -1;
                         }
-                        if (is_button_down('KeyA'))
-                        {
-                                this.direction.x = -1;
-                                this.direction_offset = Math.PI / 2;
+                        if (is_button_down('KeyA')) {
+                        this.direction.x = -1;
                         }
-                        if (is_button_down('KeyS'))
-                        {
-                                this.direction.z = 1;
-                                this.direction_offset = Math.PI;
+                        if (is_button_down('KeyS')) {
+                        this.direction.z = 1;
                         }
-                        if (is_button_down('KeyD'))
-                        {
-                                this.direction.x = 1;
-                                this.direction_offset = -Math.PI / 2;
+                        if (is_button_down('KeyD')) {
+                        this.direction.x = 1;
                         }
-                        
-                        this.direction.normalize();
-                        this.render_component.object.translateX(this.direction.x * this.velocity * dt);
-                        this.render_component.object.translateZ(this.direction.z * this.velocity * dt);
+                        if (is_button_down('Space')) {
+                        this.attack = true;
+                        }
 
-                        if (is_button_down('KeyW') && is_button_down('KeyA'))
-                        {
-                                this.direction_offset = Math.PI / 4;
-                        }
-                        else if (is_button_down('KeyW') && is_button_down('KeyD')) {
-                                this.direction_offset = - Math.PI / 4;
-                        } else if (is_button_down('KeyS') && is_button_down('KeyA')) {
-                                this.direction_offset = Math.PI / 4 + Math.PI / 2;
-                        } else if (is_button_down('KeyS') && is_button_down('KeyD')) {
+
+                        // Calculate direction offset based on pressed keys
+                        if (this.direction.x === -1 && this.direction.z === -1) {
                                 this.direction_offset = -Math.PI / 4 - Math.PI / 2;
-                        } else if (is_button_down('KeyS')) {
+                        } else if (this.direction.x === 1 && this.direction.z === -1) {
+                                this.direction_offset = Math.PI / 4 + Math.PI / 2;
+                        } else if (this.direction.x === -1 && this.direction.z === 1) {
+                                this.direction_offset = -Math.PI / 4;
+                        } else if (this.direction.x === 1 && this.direction.z === 1) {
+                                this.direction_offset = Math.PI / 4;
+                        } else if (this.direction.z === -1) {
                                 this.direction_offset = Math.PI;
-                        } else if (is_button_down('KeyA')) {
+                        } else if (this.direction.x === -1) {
+                                this.direction_offset = -Math.PI / 2;
+                        } else if (this.direction.z === 1) {
+                                this.direction_offset = 0;
+                        } else if (this.direction.x === 1) {
                                 this.direction_offset = Math.PI / 2;
-                        } else if (is_button_down('KeyD')) {
-                                this.direction_offset = - Math.PI / 2;
                         }
+
+                        this.direction.normalize();
+                        this.object.position.x += this.direction.x * this.velocity * dt;
+                        this.object.position.z += this.direction.z * this.velocity * dt;
+
+                        const rotate_quat = new THREE.Quaternion();
+                        const rotate_angle = new THREE.Vector3(0, 1, 0);
+
+                        rotate_quat.setFromAxisAngle(rotate_angle, this.direction_offset);
+                        this.object.quaternion.rotateTowards(rotate_quat, 0.2);
+
                         
                         // animation
                         if (this.direction.x == 0 && this.direction.z == 0)
@@ -775,17 +745,41 @@ class classPlayer extends TINY.gameObject
                                 {
                                         prepare_cross_fade(idle_action, run_action, 0.1);
                                 }
+
                         }
+
+                        if (this.attack && !attack_action.isRunning())
+                        {
+                                set_weight(attack_action, 1);
+                                attack_action.play().reset();
+                        }
+
+
+                        this.attack = false;
                 }
+        }
+
+        // TODO: re-think this.
+        onLoadScene() 
+        {
+                InitPlayerAnimator();
+                console.log(this.object.position);
+        }
+
+        onSaveScene()
+        {
+                console.log(this.object.parent.position);
+
+                this.serialized_position = this.object.position;
+                this.object = null;
         }
 
         onCollisionEnter(game_object)
         {
                 if (game_object.name == "enemy")
                 {
-                        this.object.material.color.r -= 0.05; 
-                        if (this.object.material.color.r <= 0)
-                                this.object.material.color.r = 1; 
+                        console.log("[Player]: Hit by enemy!");
+                        console.log(this.object.position);
                 }
         }
 }
@@ -798,6 +792,13 @@ class classEnemy extends TINY.gameObject
                 this.velocity = 3;
                 this.is_aggro = false;
                 this.radius = 5;
+
+                // HP
+                this.is_dead = false;
+                this.hp = 50;
+
+                // Attack
+                this.attack_radius = 1;
         }
 
         follow_player(dt)
@@ -812,8 +813,8 @@ class classEnemy extends TINY.gameObject
                 dir.sub(pos);
                 dir.normalize();
 
-                this.render_component.object.translateX(this.velocity * dt* dir.x);
-                this.render_component.object.translateZ(this.velocity * dt * dir.z);
+                this.object.translateX(this.velocity * dt* dir.x);
+                this.object.translateZ(this.velocity * dt * dir.z);
         }
 
         update(dt)
@@ -827,13 +828,20 @@ class classEnemy extends TINY.gameObject
 
                 if (this.object.position.distanceToSquared(sceneElements.player.object.position)    > this.radius*this.radius * 2)
                         this.is_aggro = false;
+
+                if (this.object.position.distanceToSquared(sceneElements.player.object.position) < this.radius*this.radius)
+                        this.attack = true;
+                else {
+                        this.attack = false;
+                }
         }
 
         onCollisionEnter(game_object)
         {
                 if (game_object.name == "player")
                 {
-                        this.object.material.color = new THREE.Color("rgb(255, 255, 0)");
+                        //this.object.material.color = new THREE.Color("rgb(255, 255, 0)");
+                        this.velocity = 0;
                 }
         }
 }
@@ -1073,7 +1081,7 @@ function remove_helpers()
         }
 }
 
-function remove_anims() 
+function RemoveAnimators() 
 {
         const anims = [];
         sceneElements.sceneGraph.traverse(function (obj)
@@ -1090,11 +1098,18 @@ function remove_anims()
         }
 }
 
-function save_scene()
+function SaveScene()
 {
+        // TODO: maybe implement this for all game objects?
+        // We don't need to serialize player's model because we load the model regardless
+        sceneElements.player.onSaveScene();
+
+        // Remove editor's helpers (transform helpers, lights, etc...)
         remove_helpers();
 
-        remove_anims();
+        // Remove animators from scene to not cause problems with mixers, actions, etc...
+        RemoveAnimators(); 
+        
 
         const packed_state = { 
                 'sceneGraph' : sceneElements.sceneGraph.toJSON(),
@@ -1148,7 +1163,7 @@ class sceneEditor
                 }
                 else if (was_button_down('KeyP'))
                 {
-                        //save_scene();
+                        SaveScene();
                 }
                 else if (was_button_down('KeyM'))
                 {
@@ -1201,10 +1216,10 @@ class sceneEditor
         {
                 this.unselect_object();
 
-                // NOTE: special case 
+                // @fixit: special case for player move this to hit_test
                 if (object.type == 'SkinnedMesh')
                 {
-                        object = object.parent;
+                        object = object.parent.parent;
                 }
 
                 const controls = g_editor.controls;
@@ -1425,10 +1440,14 @@ function ui_update_object_properties(object)
         final_string += '\nname: \'' + object.name + '\'';
         final_string += '\ntype: \'' + object.type+ '\'';
 
+        // get world position instead of local
+        let world_position = new THREE.Vector3(); 
+        object.getWorldPosition(world_position);
+
         final_string += '\n\npos: x:' + 
-                        object.position.x.toFixed(2) + 
-                        ' y:' + object.position.y.toFixed(2) + 
-                        ' z:' + object.position.z.toFixed(2);
+                        world_position.x.toFixed(2) + 
+                        ' y:' + world_position.y.toFixed(2) + 
+                        ' z:' + world_position.z.toFixed(2);
 
         final_string += '\nsca: x:' + 
                         object.scale.x.toFixed(2) + 
@@ -1447,13 +1466,8 @@ function ui_update_object_properties(object)
 /* SAVING/LOADING */
 function parse_render_component(json)
 {
-        const loader = new THREE.ObjectLoader();
-
-        const geometry = loader.parseGeometries(json.geometry); 
-        const material = loader.parseMaterials(json.material);
-
         // NOTE: get Object from scene graph and not from json representation
-        const name = loader.parse(json.object).name;
+        const name = json.object.name;
 
         let object = null;
         for (var obj of sceneElements.sceneGraph.children)
@@ -1470,7 +1484,8 @@ function parse_render_component(json)
                 object = loader.parse(json.object);
         }
 
-        return new TINY.renderComponent(geometry, material, object);
+        //return new TINY.renderComponent(geometry, material, object);
+        return object; 
 }
 
 function parse_collider(collider)
@@ -1483,11 +1498,15 @@ function parse_player(player_json)
         const loader = new THREE.ObjectLoader();
 
         const render = parse_render_component(player_json.render_component);
+        const serialized_position = player_json.serialized_position;
         const collider = parse_collider(player_json.collider_component);
         // TODO(@cobileacd): not sure if this is necessary.
         const transform = new TINY.transformObject(0, 0, 0); 
 
-        return new classPlayer(render, transform, "player", collider);
+        const player = new classPlayer(render, transform, "player", collider);
+        player.serialized_position = serialized_position;
+
+        return player;
 }
 
 function parse_enemy(enemy_JSON)
@@ -1543,7 +1562,7 @@ function parse_colliders_GOS(colliders_JSON)
                 }
                 else if (go_JSON.name == 'player')
                 {
-                        arr.push(parse_player(go_JSON));
+                        arr.push(sceneElements.player);
                 }
                 else if (go_JSON.isStatic)
                 {
@@ -1594,6 +1613,13 @@ function do_additional_work()
         //helper.initEmptyScene(sceneElements);
         init_camera();
         init_transform_controls();
+        update_helpers();
+
+        // @fixit: Find better way to code this
+        sceneElements.player.onLoadScene();
+        init_anim();
+
+        requestAnimationFrame(computeFrame);
 
         //create_player(sceneElements.sceneGraph);
         /*
@@ -1613,12 +1639,6 @@ function do_additional_work()
         add_point_light(15, 10, -15, 0x9ACD32);
         */
         // ------------
-
-        update_helpers();
-
-        init_anim();
-
-        requestAnimationFrame(computeFrame);
 }
 
 function init_camera()
@@ -1709,7 +1729,6 @@ function distanceVector( v1, v2 )
 }
 
 // TODO(@cobileacd): This doesn't need to be done every frame, 30 fps should be fine.
-// NOTE(@cobileacd): good ol' chat gpt :)
 function check_collisions() {
         const colliders = sceneElements.collider_gos;
 
@@ -1741,6 +1760,7 @@ function check_collisions() {
                                 
                                 const size1 = new THREE.Vector3();
                                 const size2 = new THREE.Vector3();
+                                // Box from object
                                 const box1 = new THREE.Box3().setFromObject(obj1.object); 
                                 const box2 = new THREE.Box3().setFromObject(obj2.object); 
                                 box1.getSize(size1);
@@ -1857,10 +1877,7 @@ function computeFrame(time)
                 collision_dt = 0;
                 check_collisions();
 
-                // Rendering
-                helper.render(sceneElements, sceneElements.sceneGraph);
 
-                animate();
         }
         collision_dt += dt;
 
@@ -1872,7 +1889,9 @@ function computeFrame(time)
                 mixer.update(dt);
         });
 
-
+        // Rendering
+        helper.render(sceneElements, sceneElements.sceneGraph);
+        animate();
 
         // DEBUG: clear mouse drag values.
         //input.MouseDragX = 0;
@@ -1884,158 +1903,4 @@ function computeFrame(time)
 
         // Call for the next frame
         requestAnimationFrame(computeFrame);
-}
-
-// NOTE(@cobileacd):
-// Leaving this here as a way to test save/load as things can get wrong with the save files.
-function load_tower_obj()
-{
-        const loader = new OBJLoader();
-        const texture_loader = new THREE.TextureLoader();
-
-        const texture = texture_loader.load('./data/tower/TowerFinalExport/Material.063_Base_Color.png');
-        const material = new THREE.MeshStandardMaterial(
-                {
-                        map: texture // Set texture map
-                });
-
-        loader.load(
-                // resource URL
-                './data/tower/FinalTower.obj',
-                // called when resource is loaded
-                function (object) {
-                        /*
-                        object.traverse( function( child ) {
-                                if ( child instanceof THREE.Mesh ) {
-                                        child.material = material;
-                                }
-                        } );
-                        */
-                        object.children[0].material = material;
-
-                        sceneElements.sceneGraph.add(object);
-                        gen_world(1, sceneElements.sceneGraph, object);
-                        create_enemies(sceneElements.sceneGraph);
-                },
-                // called when loading is in progresses
-                function (xhr) {
-
-                        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-
-                },
-                // called when loading has errors
-                function (error) {
-
-                        console.log('An error happened');
-
-                }
-        );
-}
-
-function load_bridge()
-{
-        const loader = new OBJLoader();
-        const mtl_loader = new MTLLoader();
-        const texture_loader = new THREE.TextureLoader();
-
-        // load a resource
-        mtl_loader.load('./data/FinalPonteExport/untitled.mtl', materials => {
-
-                //materials.preload();
-
-                const texture = texture_loader.load('./data/FinalPonteExport/Ponte1MeshTextures/Material.001_Base_color.png');
-                const material = new THREE.MeshStandardMaterial(
-                        {
-                                map: texture // Set texture map
-                        });
-
-                //loader.setMaterials(materials);
-
-                loader.load(
-                        // resource URL
-                        './data/FinalPonteExport/untitled.obj',
-                        // called when resource is loaded
-                        function ( object ) {
-                                /*
-                                object.traverse( function( child ) {
-                                        if ( child instanceof THREE.Mesh ) {
-                                                child.material = material;
-                                        }
-                                } );
-                                */
-                                object.children[0].material = material;
-                                sceneElements.sceneGraph.add(object);
-                                tower_obj.translateY(5);
-                        },
-                        // called when loading is in progresses
-                        function ( xhr ) {
-
-                                console.log( ( xhr.loaded / xhr.total * 100 ) + '% loaded' );
-
-                        },
-                        // called when loading has errors
-                        function ( error ) {
-
-                                console.log( 'An error happened' );
-
-                        }
-                );
-        });
-}
-
-function load_flower()
-{
-        const loader = new FBXLoader();
-
-        loader.load('./data/SimpleNaturePack/Models/Flowers_01.fbx',
-                (object) => {
-                        sceneElements.sceneGraph.add(object)
-                        object.scale.set(0.1, 0.1, 0.1);
-                },
-                (xhr) => {
-                        console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
-                },
-                (error) => {
-                        console.log(error)
-                }
-        )
-}
-
-function gen_world(grid_size, sceneGraph, tower_obj)
-{
-        const ROOM_SIZE = 24; // ?
-        const SPACE = 150; // space in between rooms
-
-        sceneElements.sceneGraph.add(tower_obj);
-
-        tower_obj.translateX(0);
-        tower_obj.translateZ(0);
-        tower_obj.translateY(-71);
-        tower_obj.rotateOnAxis(new THREE.Vector3(0, 0, 0), Math.PI / 2);
-
-        //tower_obj.scale.set(0.01, 0.01, 0.01);
-
-        sceneElements.rooms.push([0, 0]);
-
-        for (let i = 1; i < grid_size; i++)
-        {
-                const tower_clone = tower_obj.clone();
-
-                const grid_y = TINY.random_range(0, grid_size);
-
-                const world_z = grid_y * ROOM_SIZE;
-                const world_x = i * ROOM_SIZE + SPACE * i;
-
-                gen_room(world_x, world_z, sceneGraph, tower_clone);
-        }
-}
-
-function gen_room(x, z, sceneGraph, tower_obj)
-{
-        sceneGraph.add(tower_obj);
-
-        tower_obj.translateX(x);
-        tower_obj.translateZ(z);
-
-        sceneElements.rooms.push([x, z]);
 }
