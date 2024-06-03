@@ -213,7 +213,7 @@ document.addEventListener("keyup", function(event)
 
 document.body.onpointerdown = function(event)
         {
-                console.log(event);
+                //console.log(event);
                 if (event.button == 0)
                 {
                         //input['MouseButton1'] = true;
@@ -255,8 +255,8 @@ document.addEventListener('mousemove', (event) =>
                         //input.MouseDragX = drag_X;
                         //input.MouseDragY = drag_Y;
 
-                        console.log(drag_Y);
-                        console.log(drag_X);
+                        //console.log(drag_Y);
+                        //console.log(drag_X);
                 }
         });
 /* END INPUT */
@@ -329,7 +329,7 @@ function InitPlayerAnimator()
                 mixer = new THREE.AnimationMixer(model);
                 sceneElements.mixers.push(mixer);
 
-                console.log(gltf.animations);
+                //console.log(gltf.animations);
 
                 death_action = mixer.clipAction(animations[0]);
                 idle_action = mixer.clipAction(animations[3]);
@@ -339,7 +339,7 @@ function InitPlayerAnimator()
 
                 attack_action.setLoop(THREE.LoopOnce);
 
-                console.log(attack_action);
+                //console.log(attack_action);
 
                 actions = [ idle_action, walk_action, run_action, death_action, attack_action ];
 
@@ -371,8 +371,8 @@ function applyCustomBoundingBox(mesh, customBoundingBox) {
     customBoundingBox.getBoundingSphere(boundingSphere);
     mesh.geometry.boundingSphere = boundingSphere;
 
-    console.log('Applied Custom Bounding Box:', mesh.geometry.boundingBox);
-    console.log('Applied Custom Bounding Sphere:', mesh.geometry.boundingSphere);
+    //console.log('Applied Custom Bounding Box:', mesh.geometry.boundingBox);
+    //console.log('Applied Custom Bounding Sphere:', mesh.geometry.boundingSphere);
 }
 
 function recalculateBoundingBox(mesh) {
@@ -384,8 +384,8 @@ function recalculateBoundingBox(mesh) {
     mesh.geometry.computeBoundingSphere();
     const sphere = mesh.geometry.boundingSphere;
 
-    console.log('Recalculated Bounding Box:', box);
-    console.log('Recalculated Bounding Sphere:', sphere);
+    //console.log('Recalculated Bounding Box:', box);
+    //console.log('Recalculated Bounding Sphere:', sphere);
 
     mesh.geometry.boundingBox = box;
     mesh.geometry.boundingSphere = sphere;
@@ -400,7 +400,7 @@ function init_anim()
                         {
                                 map: object.children[0].material.map
                         });
-                console.log(object);
+                //console.log(object);
                 object.children[0].material = material;
 
                 object.position.set(-11, -1, -14);
@@ -412,13 +412,15 @@ function init_anim()
 
                 const skeleton = new THREE.SkeletonHelper(object);
                 skeleton.visible = true;
+                skeleton.name = 'anim';
+                skeleton.userData = {'isSkeleton' : true};
                 sceneElements.sceneGraph.add(skeleton);
 
                 const animations = object.animations;
                 const mixer = new THREE.AnimationMixer(object);
                 sceneElements.mixers.push(mixer);
 
-                console.log(animations);
+                //console.log(animations);
                 const idle_c = mixer.clipAction(animations[1]);
 
                 idle_c.timeScale = 0.5;
@@ -722,7 +724,7 @@ class classCamera
                 var x = TINY.random_range(-1, 1);
                 var z = TINY.random_range(-1, 1);
 
-                console.log(this.anim_dt);
+                //console.log(this.anim_dt);
                 const noise = new THREE.Vector3(x, 0, z).normalize()
                         .multiplyScalar((this.anim_time - this.anim_dt) / 15);
                 this.camera.position.add(noise);
@@ -832,12 +834,12 @@ class classPlayer extends TINY.gameObject
         onLoadScene() 
         {
                 InitPlayerAnimator();
-                console.log(this.object.position);
+                //console.log(this.object.position);
         }
 
         onSaveScene()
         {
-                console.log(this.object.parent.position);
+                //console.log(this.object.parent.position);
 
                 this.serialized_position = this.object.position;
                 this.object = null;
@@ -848,8 +850,8 @@ class classPlayer extends TINY.gameObject
                 if (game_object.name == "enemy" && attack_action.isRunning())
                 {
                         game_object.Die();
-                        //console.log("[Player]: Hit by enemy!");
-                        //console.log(this.object.position);
+                        ////console.log("[Player]: Hit by enemy!");
+                        ////console.log(this.object.position);
                 }
         }
 }
@@ -889,7 +891,7 @@ class classEnemyModel
                                 if (object.isMesh) object.castShadow = true;
                         });
 
-                        console.log(this.model);
+                        //console.log(this.model);
                         this.model.traverse((object) => {
                                 if (object.isSkinnedMesh) {
                                         object.material.metalness = 0;
@@ -914,14 +916,14 @@ class classEnemyModel
                         this.skeleton.visible = true;
                         this.skeleton.name = 'anim';
                         this.skeleton.userData = { 'isSkeleton': true };
-                        console.log(this.skeleton);
+                        //console.log(this.skeleton);
                         //sceneElements.sceneGraph.add(this.skeleton);
 
                         const animations = gltf.animations;
                         this.mixer = new THREE.AnimationMixer(this.model);
                         sceneElements.mixers.push(this.mixer);
 
-                        console.log(gltf.animations);
+                        //console.log(gltf.animations);
 
                         this.death_action = this.mixer.clipAction(animations[0]);
                         this.idle_action = this.mixer.clipAction(animations[3]);
@@ -1206,9 +1208,9 @@ function clone_object(object)
         }
         else if (object.parent.isGroup)
         {
-                console.log('group');
+                //console.log('group');
                 const new_object = object.parent.clone();
-                console.log(new_object);
+                //console.log(new_object);
                 new_object.translateY(5);
                 sceneElements.sceneGraph.add(new_object);
 
@@ -1217,7 +1219,7 @@ function clone_object(object)
         else
         {
                 const new_object = object.clone();
-                console.log(new_object);
+                //console.log(new_object);
                 new_object.translateY(5);
                 sceneElements.sceneGraph.add(new_object);
 
@@ -1354,6 +1356,10 @@ function remove_helpers()
                 {
                         helpers.push(obj);
                 }
+                else if (obj.userData.isSkybox != undefined)
+                {
+                        helpers.push(obj);
+                }
         });
 
         for (var helper of helpers)
@@ -1406,7 +1412,7 @@ function SaveScene()
         xhr.setRequestHeader('Content-Type', 'application/json');
         xhr.onreadystatechange = function() {
                 if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
-                        console.log(xhr.responseText);
+                        //console.log(xhr.responseText);
                 }
         };
         xhr.send(scene_state_string);       
@@ -1627,7 +1633,7 @@ function hit_test(event)
 
         if (intersects.length > 0 && hit_in_range(intersects)) 
         {
-                console.log(intersects);
+                //console.log(intersects);
                 let object = intersects[0].object;
                 if (object.isTransformControlsPlane || object.isMesh != true)
                 {
@@ -1648,8 +1654,8 @@ function hit_test(event)
                         }
                 }
 
-                console.log(object);
-                console.log(intersects);
+                //console.log(object);
+                //console.log(intersects);
 
                 if (object) 
                 {
@@ -1678,7 +1684,7 @@ const loadModelButton = document.getElementById("load-model-button");
 loadModelButton.addEventListener("click", () => {
         const modelNameInput = document.getElementById("model-name");
         const model_name = modelNameInput.value;
-        console.log(model_name);
+        //console.log(model_name);
         //load_model(model_name);
 });
 
@@ -1700,10 +1706,10 @@ function load_model(model_name)
                         g_editor.select_object(object);
                 },
                 (xhr) => {
-                        console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
+                        //console.log((xhr.loaded / xhr.total) * 100 + '% loaded')
                 },
                 (error) => {
-                        console.log(error)
+                        //console.log(error)
                 }
         )
 }
@@ -1803,7 +1809,7 @@ function parse_enemy(enemy_JSON)
 
 function parse_enemies(enemies_JSON)
 {
-        console.log(enemies_JSON);
+        //console.log(enemies_JSON);
 
         let arr = [];
         for (var enemy_JSON of enemies_JSON)
@@ -1832,7 +1838,7 @@ function parse_static_collider(collider_JSON)
 
 function parse_colliders_GOS(colliders_JSON)
 {
-        console.log(colliders_JSON);
+        //console.log(colliders_JSON);
         let arr = [];
         for (var go_JSON of colliders_JSON)
         {
@@ -1865,7 +1871,7 @@ function load_scene_from_file()
         sceneElements.rooms = JSON.parse(scene.rooms);
         sceneElements.collider_gos = parse_colliders_GOS(JSON.parse(scene.collider_gos));
 
-        console.log(sceneElements);
+        //console.log(sceneElements);
         const width = window.innerWidth;
         const height = window.innerHeight;
 
@@ -1899,6 +1905,8 @@ function do_additional_work()
         sceneElements.player.onLoadScene();
         init_anim();
 
+        createSkybox();
+
         requestAnimationFrame(computeFrame);
 
         //create_player(sceneElements.sceneGraph);
@@ -1925,7 +1933,7 @@ function init_camera()
 {
         const width = window.innerWidth;
         const height = window.innerHeight;
-        const camera = new THREE.PerspectiveCamera(45, width / height, 10, 200);
+        const camera = new THREE.PerspectiveCamera(45, width / height, 10, 10000);
         //sceneElements.camera = camera;
         camera.position.set(0, 20, 40);
         camera.lookAt(0, 0, 0);
@@ -1999,6 +2007,68 @@ function create_player(sceneGraph)
         const collider = new TINY.colliderComponent(0.56, 'rect');
         sceneElements.player = new classPlayer(player_renderer, transform, "player", collider);
         sceneElements.collider_gos.push(sceneElements.player);
+}
+
+function createSkybox() 
+{
+        // Create skybox geometry
+        const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
+
+        // Create custom shader material for skybox
+        const skyboxMaterial = new THREE.ShaderMaterial({
+                uniforms: {
+                        topColor: { value: new THREE.Color(0x5c54a4) },
+                        bottomColor: { value: new THREE.Color(0x070e17) },
+                        gradientStart: { value: 200 } // Lower value means the gradient starts sooner
+                },
+                vertexShader: `
+            varying vec3 vWorldPosition;
+            void main() {
+                vec4 worldPosition = modelMatrix * vec4(position, 1.0);
+                vWorldPosition = worldPosition.xyz;
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+            }
+        `,
+                fragmentShader: `
+            uniform vec3 topColor;
+            uniform vec3 bottomColor;
+            uniform float gradientStart;
+            varying vec3 vWorldPosition;
+            void main() {
+                float h = normalize(vWorldPosition + vec3(0.0, gradientStart, 0.0)).y;
+                gl_FragColor = vec4(mix(bottomColor, topColor, max(h, 0.0)), 1.0);
+            }
+        `,
+                side: THREE.BackSide
+        });
+
+        // Create skybox mesh
+        const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
+        skybox.userData = { 'isSkybox': true };
+        sceneElements.sceneGraph.add(skybox);
+
+        // Create stars
+        const starGeometry = new THREE.BufferGeometry();
+        const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 1 });
+
+        const starCount = 5000;
+        const starPositions = new Float32Array(starCount * 3);
+
+        for (let i = 0; i < starCount; i++) {
+                const x = (Math.random() - 0.5) * 1000;
+                const y = (Math.random() - 0.5) * 1000;
+                const z = (Math.random() - 0.5) * 1000;
+
+                starPositions[i * 3] = x;
+                starPositions[i * 3 + 1] = y;
+                starPositions[i * 3 + 2] = z;
+        }
+
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const stars = new THREE.Points(starGeometry, starMaterial);
+        stars.userData = { 'isSkybox': true };
+        //console.log(stars);
+        sceneElements.sceneGraph.add(stars);
 }
 
 function distanceVector( v1, v2 )
