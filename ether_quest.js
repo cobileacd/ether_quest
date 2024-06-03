@@ -7,6 +7,12 @@
   across sessions could break.
 */
 
+/* FINAL SPRINT:
+- Hide colliders when hiding helpers 
+- Create Anim class for Enemies 
+- Attack Logic for player and enemies 
+*/
+
 /* TODO(@cobileacd):
  * - Integrate models for enemies (with animations).
  * - Optmize performance. 
@@ -306,7 +312,7 @@ function InitPlayerAnimator()
                 );
                 model.traverse(function (object) {
                         if (object.isMesh) {
-                               // applyCustomBoundingBox(object, customBoundingBox);
+                               applyCustomBoundingBox(object, customBoundingBox);
                         }
                 });
 
@@ -316,6 +322,7 @@ function InitPlayerAnimator()
                 skeleton = new THREE.SkeletonHelper(model);
                 skeleton.visible = true;
                 skeleton.name = 'anim';
+                skeleton.userData = {'isSkeleton' : true};
                 sceneElements.sceneGraph.add( skeleton );
 
                 const animations = gltf.animations;
@@ -838,11 +845,161 @@ class classPlayer extends TINY.gameObject
 
         onCollisionEnter(game_object)
         {
-                if (game_object.name == "enemy")
+                if (game_object.name == "enemy" && attack_action.isRunning())
                 {
-                        console.log("[Player]: Hit by enemy!");
-                        console.log(this.object.position);
+                        game_object.Die();
+                        //console.log("[Player]: Hit by enemy!");
+                        //console.log(this.object.position);
                 }
+        }
+}
+
+class classEnemyModel 
+{
+        constructor(self, position) 
+        {
+                this.model = '';
+                this.skeleton = '';
+                this.mixer = '';
+                this.idle_action = '';
+                this.walk_action = '';
+                this.run_action = '';
+                this.death_action = '';
+                this.receive_hit_action = '';
+                this.attack_action = '';
+                this.idle_weight = '';
+                this.walk_weight = '';
+                this.run_weight = '';
+                this.death_weight = '';
+                this.attack_weight = '';
+                this.actions = '';
+
+                this.initAnimator(self, position);
+        }
+
+        initAnimator(self, position)
+        {
+                const loader = new GLTFLoader();
+                loader.load('data/BlueDemon.glb', async (gltf) => { 
+                        this.model = gltf.scene;
+
+                        this.model.name = 'anim';
+
+                        this.model.traverse(function (object) {
+                                if (object.isMesh) object.castShadow = true;
+                        });
+
+                        console.log(this.model);
+                        this.model.traverse((object) => {
+                                if (object.isSkinnedMesh) {
+                                        object.material.metalness = 0;
+                                        object.material.roughness = 0.5;
+                                }
+                        });
+
+                        const customBoundingBox = new THREE.Box3(
+                                new THREE.Vector3(-2, -2, -2),
+                                new THREE.Vector3(2, 2, 2)
+                        );
+                        this.model.traverse(function (object) {
+                                if (object.isMesh) {
+                                        applyCustomBoundingBox(object, customBoundingBox);
+                                }
+                        });
+
+                        //model.position.set(0, -0.65, 0);
+                        sceneElements.sceneGraph.add(this.model);
+
+                        this.skeleton = new THREE.SkeletonHelper(this.model);
+                        this.skeleton.visible = true;
+                        this.skeleton.name = 'anim';
+                        this.skeleton.userData = { 'isSkeleton': true };
+                        console.log(this.skeleton);
+                        //sceneElements.sceneGraph.add(this.skeleton);
+
+                        const animations = gltf.animations;
+                        this.mixer = new THREE.AnimationMixer(this.model);
+                        sceneElements.mixers.push(this.mixer);
+
+                        console.log(gltf.animations);
+
+                        this.death_action = this.mixer.clipAction(animations[0]);
+                        this.idle_action = this.mixer.clipAction(animations[3]);
+                        this.walk_action = this.mixer.clipAction(animations[4]);
+                        this.run_action = this.mixer.clipAction(animations[9]);
+                        this.attack_action = this.mixer.clipAction(animations[13]);
+
+                        this.attack_action.setLoop(THREE.LoopOnce);
+                        this.death_action.setLoop(THREE.LoopOnce);
+
+                        this.actions = [this.idle_action, this.walk_action, this.run_action, this.death_action, this.attack_action];
+
+                        //@fixit: for some reason position is not set correctly without sleeping
+                        //await new Promise(r => setTimeout(r, 1000)); 
+                        //const new_position = sceneElements.player.serialized_position;
+                        this.model.position.copy(position);
+                        this.model.position.setY(-1.5);
+
+                        sceneElements.sceneGraph.remove(self.object);
+                        self.object = this.model;
+                        self.render_component = this.model;
+                        //sceneElements.player.object = model;
+                        //toggleMorphAttributes(model, false);
+                        //toggleMorphAttributes(model, true);
+                        //sceneElements.player.object.position.copy(sceneElements.player.serialized_position);
+
+                        //idle_action.play();
+                        //prepare_cross_fade(idle_action, walk_action, 0.5);
+                        this.activate_all_actions();
+                });
+        }
+
+        unpause_all_actions() 
+        {
+                this.actions.forEach(function (action) 
+                {
+                        action.paused = false;
+                });
+        }
+
+        animate() 
+        {
+                if (this.mixer) 
+                {
+                        this.idle_weight = this.idle_action.getEffectiveWeight();
+                        this.walk_weight = this.walk_action.getEffectiveWeight();
+                        this.run_weight = this.run_action.getEffectiveWeight();
+                        this.attack_weight = this.attack_action.getEffectiveWeight();
+                }
+        }
+
+        activate_all_actions() 
+        {
+                set_weight(this.idle_action, 1);
+                set_weight(this.walk_action, 0);
+                set_weight(this.run_action, 0);
+                set_weight(this.attack_action, 0);
+                set_weight(this.death_action, 0);
+
+                this.actions.forEach(function (action) {
+                        action.play();
+                });
+        }
+
+        prepare_cross_fade(start_action, end_action, duration) {
+                this.unpause_all_actions();
+
+                execute_cross_fade(start_action, end_action, duration);
+        }
+
+        clear_weights()
+        {
+                set_weight(this.idle_action, 0);
+                set_weight(this.walk_action, 0);
+                set_weight(this.run_action, 0);
+                set_weight(this.attack_action, 0);
+                set_weight(this.death_action, 0);
+
         }
 }
 
@@ -851,59 +1008,113 @@ class classEnemy extends TINY.gameObject
         constructor(render_component, transform, name, collider)
         {
                 super(render_component, transform, name, collider);
-                this.velocity = 3;
+                this.velocity = 4;
                 this.is_aggro = false;
-                this.radius = 5;
+                this.radius = 8;
+                this.collider_active = true;
 
                 // HP
-                this.is_dead = false;
+                this.dead = false;
                 this.hp = 50;
 
                 // Attack
                 this.attack_radius = 1;
+
+                const position = this.object.position;
+                //this.object.visible = false;
+                this.animator = new classEnemyModel(this, position);
+                //this.object.position.copy(new_position);
         }
 
-        follow_player(dt)
-        {
+        follow_player(dt) {
                 const pos = new THREE.Vector3();
                 this.object.getWorldPosition(pos);
 
                 const player_pos = new THREE.Vector3();
                 sceneElements.player.object.getWorldPosition(player_pos);
 
-                const dir = player_pos;
-                dir.sub(pos);
+                const dir = new THREE.Vector3().subVectors(player_pos, pos).normalize();
+
+                this.object.position.x += this.velocity * dt * dir.x;
+                this.object.position.z += this.velocity * dt * dir.z;
+
+                let direction_offset = Math.atan2(dir.x, dir.z);
+
                 dir.normalize();
 
-                this.object.translateX(this.velocity * dt* dir.x);
-                this.object.translateZ(this.velocity * dt * dir.z);
+                const rotate_quat = new THREE.Quaternion();
+                const rotate_angle = new THREE.Vector3(0, 1, 0);
+
+                rotate_quat.setFromAxisAngle(rotate_angle, direction_offset);
+                this.object.quaternion.rotateTowards(rotate_quat, 0.1);
         }
 
-        update(dt)
+        update(dt) {
+                // follow only if aggro
+                if (!this.dead)
+                {
+                        if (this.is_aggro) {
+                                this.follow_player(dt);
+                        }
+
+                        if (this.object.position.distanceToSquared(sceneElements.player.object.position) < this.radius * this.radius)
+                                this.is_aggro = true;
+
+                        if (this.object.position.distanceToSquared(sceneElements.player.object.position) > this.radius * this.radius * 2)
+                                this.is_aggro = false;
+
+                        if (this.object.position.distanceToSquared(sceneElements.player.object.position) < this.radius * this.radius)
+                                this.attack = true;
+                        else {
+                                this.attack = false;
+                        }
+
+                        if (!this.is_aggro) {
+                                if (this.animator.run_weight == 1) {
+                                        this.animator.prepare_cross_fade(this.animator.run_action, this.animator.idle_action, 0.1);
+                                }
+                        }
+                        else {
+                                if (this.animator.idle_weight == 1) {
+                                        this.animator.prepare_cross_fade(this.animator.idle_action, this.animator.run_action, 0.1);
+                                }
+                        }
+                }
+        }
+
+        Die() 
         {
-                // follow only 
-                if (this.is_aggro)
-                        this.follow_player(dt);
+                if (!this.dead)
+                {
+                        this.animator.clear_weights();
+                        set_weight(this.animator.death_action, 1);
 
-                if (this.object.position.distanceToSquared(sceneElements.player.object.position) < this.radius*this.radius)
-                        this.is_aggro = true;
+                        this.animator.death_action.reset();
+                        this.animator.death_action.setLoop(THREE.LoopOnce); // Ensure death action does not loop
 
-                if (this.object.position.distanceToSquared(sceneElements.player.object.position)    > this.radius*this.radius * 2)
-                        this.is_aggro = false;
+                        this.animator.death_action.play();
 
-                if (this.object.position.distanceToSquared(sceneElements.player.object.position) < this.radius*this.radius)
-                        this.attack = true;
-                else {
-                        this.attack = false;
+                        // Set an event listener to freeze the model when the death animation ends
+                        this.animator.death_action.clampWhenFinished = true;
+                        this.animator.death_action.onFinished = () => {
+                                // Ensure the model stays in the final frame of the death animation
+                                this.animator.mixer.stopAllAction(); // Stop all actions to prevent any animation from playing
+                        };
+
+                        this.dead = true;
+                        this.collider_active = false;
                 }
         }
 
         onCollisionEnter(game_object)
         {
-                if (game_object.name == "player")
+                if (game_object.name == "player" && !this.dead)
                 {
-                        //this.object.material.color = new THREE.Color("rgb(255, 255, 0)");
-                        this.velocity = 0;
+                        if (!this.animator.attack_action.isRunning())
+                        {
+                                set_weight(this.animator.attack_action, 1);
+                                this.animator.attack_action.play().reset();
+                        }
                 }
         }
 }
@@ -915,11 +1126,11 @@ const sceneElements = {
         three_camera: null,
         renderer:     null,
         player:       null,
-        mixers:       [],    // used for animations, need to be updated
+        mixers:       [],   // used for animations, need to be updated
         enemies:      [],
         collider_gos: [],
-        rooms:        [], // data about rooms: pos_x, pos_z 
-                          // may be necessary for enemy spawns or we just place spawners in scene
+        rooms:        [],   // data about rooms: pos_x, pos_z 
+                            // may be necessary for enemy spawns or we just place spawners in scene
         
         transform_controls: null,
 };
@@ -1080,6 +1291,10 @@ function show_helpers()
                         //helpers.push(obj);
                         obj.visible = true;
                 }
+                else if (obj.userData.isSkeleton != undefined)
+                {
+                        obj.visible = true;
+                }
         });
 
 }
@@ -1104,6 +1319,10 @@ function hide_helpers()
                 else if (obj.name == 'cubeSpotLightHelper') // our version of the helper
                 {
                         //helpers.push(obj);
+                        obj.visible = false;
+                }
+                else if (obj.userData.isSkeleton != undefined)
+                {
                         obj.visible = false;
                 }
         });
@@ -1171,7 +1390,6 @@ function SaveScene()
 
         // Remove animators from scene to not cause problems with mixers, actions, etc...
         RemoveAnimators(); 
-        
 
         const packed_state = { 
                 'sceneGraph' : sceneElements.sceneGraph.toJSON(),
@@ -1643,7 +1861,7 @@ function load_scene_from_file()
         const graph = loader.parse(scene.sceneGraph);
         sceneElements.sceneGraph = graph;
         sceneElements.player = parse_player(JSON.parse(scene.player));
-        sceneElements.enemies = parse_enemies(JSON.parse(scene.enemies));
+        //sceneElements.enemies = parse_enemies(JSON.parse(scene.enemies));
         sceneElements.rooms = JSON.parse(scene.rooms);
         sceneElements.collider_gos = parse_colliders_GOS(JSON.parse(scene.collider_gos));
 
@@ -1717,6 +1935,7 @@ function init_camera()
         sceneElements.cameraObj = camera;
 }
 
+/*
 function create_enemies(sceneGraph)
 {
         for (let j = 0; j < sceneElements.rooms.length; j++)
@@ -1756,6 +1975,7 @@ function create_enemies(sceneGraph)
                 }
         }
 }
+*/
 
 function create_player(sceneGraph)
 {
@@ -1796,10 +2016,13 @@ function check_collisions() {
 
         for (let i = 0; i < colliders.length; i++) {
                 const obj1 = colliders[i];
+                if (obj1.collider_active != undefined) { if (!obj1.collider_active) continue }
+
                 const y1 = obj1.object.position.y;
 
                 for (let j = i + 1; j < colliders.length; j++) {
                         const obj2 = colliders[j];
+                        if (obj2.collider_active != undefined) { if (!obj2.collider_active) continue }
                         const y2 = obj2.object.position.y;
 
                         // Check collisions between circles
@@ -1937,9 +2160,10 @@ function computeFrame(time)
         }
 
         sceneElements.player.update(dt);
-        for (var enemy of sceneElements.enemies)
+        for (var enemy of sceneElements.collider_gos)
         {
-                enemy.update(dt);
+                if (enemy.name == "enemy")
+                        enemy.update(dt);
         }
         g_editor.update(dt);
 
@@ -1948,8 +2172,6 @@ function computeFrame(time)
         {
                 collision_dt = 0;
                 check_collisions();
-
-
         }
         collision_dt += dt;
 
@@ -1963,7 +2185,13 @@ function computeFrame(time)
 
         // Rendering
         helper.render(sceneElements, sceneElements.sceneGraph);
-        animate();
+
+        animate(); //player
+        for (var enemy of sceneElements.collider_gos)
+        {
+                if (enemy.animator != undefined)
+                        enemy.animator.animate();
+        }
 
         // DEBUG: clear mouse drag values.
         //input.MouseDragX = 0;
