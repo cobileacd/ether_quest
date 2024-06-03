@@ -147,6 +147,7 @@ const helper = {
         // Setup shadowMap property
         renderer.shadowMap.enabled = true;
         renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.shadowMap.autoUpdate = false;  // Manually update shadows for better performance
 
         // **************************************** //
         // Add the rendered image in the HTML DOM
@@ -881,8 +882,21 @@ class classEnemyModel
 
         initAnimator(self, position)
         {
+                let model;
+                let attack_idx;
+                if(Math.random() > 0.5) 
+                {
+                        model = 'data/BlueDemon.glb';
+                        attack_idx = 13;
+                }
+                else 
+                {
+                        model = 'data/Orc.glb';
+                        attack_idx = 12;
+                } 
+
                 const loader = new GLTFLoader();
-                loader.load('data/BlueDemon.glb', async (gltf) => { 
+                loader.load(model, async (gltf) => { 
                         this.model = gltf.scene;
 
                         this.model.name = 'anim';
@@ -929,29 +943,22 @@ class classEnemyModel
                         this.idle_action = this.mixer.clipAction(animations[3]);
                         this.walk_action = this.mixer.clipAction(animations[4]);
                         this.run_action = this.mixer.clipAction(animations[9]);
-                        this.attack_action = this.mixer.clipAction(animations[13]);
+                        this.attack_action = this.mixer.clipAction(animations[attack_idx]);
 
                         this.attack_action.setLoop(THREE.LoopOnce);
                         this.death_action.setLoop(THREE.LoopOnce);
 
                         this.actions = [this.idle_action, this.walk_action, this.run_action, this.death_action, this.attack_action];
 
-                        //@fixit: for some reason position is not set correctly without sleeping
-                        //await new Promise(r => setTimeout(r, 1000)); 
-                        //const new_position = sceneElements.player.serialized_position;
                         this.model.position.copy(position);
                         this.model.position.setY(-1.5);
 
-                        sceneElements.sceneGraph.remove(self.object);
+                        if (self.object != undefined)
+                                sceneElements.sceneGraph.remove(self.object);
+
                         self.object = this.model;
                         self.render_component = this.model;
-                        //sceneElements.player.object = model;
-                        //toggleMorphAttributes(model, false);
-                        //toggleMorphAttributes(model, true);
-                        //sceneElements.player.object.position.copy(sceneElements.player.serialized_position);
 
-                        //idle_action.play();
-                        //prepare_cross_fade(idle_action, walk_action, 0.5);
                         this.activate_all_actions();
                 });
         }
@@ -1007,13 +1014,15 @@ class classEnemyModel
 
 class classEnemy extends TINY.gameObject
 {
-        constructor(render_component, transform, name, collider)
+        constructor(render_component, transform, name, collider, serialized_position)
         {
                 super(render_component, transform, name, collider);
                 this.velocity = 4;
                 this.is_aggro = false;
                 this.radius = 8;
                 this.collider_active = true;
+
+                this.serialized_position = serialized_position
 
                 // HP
                 this.dead = false;
@@ -1022,10 +1031,11 @@ class classEnemy extends TINY.gameObject
                 // Attack
                 this.attack_radius = 1;
 
-                const position = this.object.position;
-                //this.object.visible = false;
+                let position = serialized_position;
+                if (this.object != null)
+                        position = this.object.position;
+
                 this.animator = new classEnemyModel(this, position);
-                //this.object.position.copy(new_position);
         }
 
         follow_player(dt) {
@@ -1052,7 +1062,6 @@ class classEnemy extends TINY.gameObject
         }
 
         update(dt) {
-                // follow only if aggro
                 if (!this.dead)
                 {
                         if (this.is_aggro) {
@@ -1119,6 +1128,13 @@ class classEnemy extends TINY.gameObject
                         }
                 }
         }
+
+        onSaveScene()
+        {
+                this.serialized_position = this.object.position;
+                this.object = null;
+                this.animator = null;
+        }
 }
 
 // General scene state
@@ -1129,7 +1145,7 @@ const sceneElements = {
         renderer:     null,
         player:       null,
         mixers:       [],   // used for animations, need to be updated
-        enemies:      [],
+        //enemies:      [],
         collider_gos: [],
         rooms:        [],   // data about rooms: pos_x, pos_z 
                             // may be necessary for enemy spawns or we just place spawners in scene
@@ -1161,6 +1177,12 @@ function delete_object(object)
                 return;
         }
 
+        if (object.name == 'collider')
+        {
+                // TODO:
+                return;
+        }
+
         if (object.parent.isGroup)
                 sceneElements.sceneGraph.remove(object.parent);
         else
@@ -1168,8 +1190,22 @@ function delete_object(object)
 
 }
 
+function RemoveAllStaticColliders()
+{
+        for (let i = 0; i < sceneElements.collider_gos.length; i++)
+        {
+                if (sceneElements.collider_gos[i].isStatic)
+                        {
+                                sceneElements.collider_gos.splice(i, 1);
+                                i = 0;
+                        }
+
+        }
+}
+
 function clone_object(object)
 {
+
         // special case for lights
         if (object.light != undefined)
         {
@@ -1203,8 +1239,12 @@ function clone_object(object)
 
                 sceneElements.collider_gos.push(collider);
 
-
                 g_editor.select_object(new_object);
+        }
+        else if (object.name == 'anim')
+        {
+                console.log("Can't clone animated models yet");
+                return;
         }
         else if (object.parent.isGroup)
         {
@@ -1270,71 +1310,36 @@ function update_helpers()
         } );
 }
 
-// TODO(@cobileacd): re-think this.
-function show_helpers()
+function ShowHelpers(show)
 {
         g_editor.unselect_object(); // remove transform controls
 
-        const helpers = [];
         sceneElements.sceneGraph.traverse(function (obj) 
         {
                 if (obj.type == 'PointLightHelper') 
                 {
                         //helpers.push(obj);
-                        obj.visible = true;
+                        obj.visible = show;
                 }
                 else if (obj.type == 'SpotLightHelper') 
                 {
                         //helpers.push(obj);
-                        obj.visible = true;
+                        obj.visible = show;
                 }
                 else if (obj.name == 'cubeSpotLightHelper') // our version of the helper
                 {
                         //helpers.push(obj);
-                        obj.visible = true;
+                        obj.visible = show;
                 }
                 else if (obj.userData.isSkeleton != undefined)
                 {
-                        obj.visible = true;
+                        obj.visible = show;
+                }
+                else if (obj.name == 'collider')
+                {
+                        obj.visible = show;
                 }
         });
-
-}
-
-function hide_helpers()
-{
-        g_editor.unselect_object(); // remove transform controls
-
-        const helpers = [];
-        sceneElements.sceneGraph.traverse(function (obj) 
-        {
-                if (obj.type == 'PointLightHelper') 
-                {
-                        //helpers.push(obj);
-                        obj.visible = false;
-                }
-                else if (obj.type == 'SpotLightHelper') 
-                {
-                        //helpers.push(obj);
-                        obj.visible = false;
-                }
-                else if (obj.name == 'cubeSpotLightHelper') // our version of the helper
-                {
-                        //helpers.push(obj);
-                        obj.visible = false;
-                }
-                else if (obj.userData.isSkeleton != undefined)
-                {
-                        obj.visible = false;
-                }
-        });
-
-        /*
-        for (var helper of helpers)
-        {
-                sceneElements.sceneGraph.remove(helper);
-        }
-        */
 }
 
 function remove_helpers()
@@ -1390,6 +1395,12 @@ function SaveScene()
         // TODO: maybe implement this for all game objects?
         // We don't need to serialize player's model because we load the model regardless
         sceneElements.player.onSaveScene();
+        for (var enemy of sceneElements.collider_gos)
+        {
+                if (enemy.name == 'enemy')
+                        enemy.onSaveScene();
+        }
+
 
         // Remove editor's helpers (transform helpers, lights, etc...)
         remove_helpers();
@@ -1400,7 +1411,7 @@ function SaveScene()
         const packed_state = { 
                 'sceneGraph' : sceneElements.sceneGraph.toJSON(),
                 'player' : JSON.stringify(sceneElements.player),
-                'enemies' : JSON.stringify(sceneElements.enemies),
+                //'enemies' : JSON.stringify(sceneElements.enemies),
                 'collider_gos' : JSON.stringify(sceneElements.collider_gos),
                 'rooms' : JSON.stringify(sceneElements.rooms),
         };
@@ -1479,12 +1490,14 @@ class sceneEditor
                         if (this.show_helpers)
                         {
                                 //remove_helpers();
-                                hide_helpers();
+                                //hide_helpers();
+                                ShowHelpers(false);
                         }
                         else
                         {
                                 //update_helpers();
-                                show_helpers();
+                                //show_helpers();
+                                ShowHelpers(true);
                         }
 
                         this.show_helpers = !this.show_helpers;
@@ -1502,11 +1515,24 @@ class sceneEditor
         {
                 this.unselect_object();
 
-                // @fixit: special case for player move this to hit_test
-                if (object.type == 'SkinnedMesh')
+                if (object.name == 'skybox')
                 {
-                        object = object.parent.parent;
+                        return;
                 }
+
+                // @fixit: special case for player or enemy move this to hit_test
+                while (object && object.type === 'SkinnedMesh') {
+                        let parent = object.parent;
+                        while (parent && parent.name !== 'anim') {
+                                parent = parent.parent;
+                        }
+                        if (!parent) {
+                                console.warn('Parent with name "anim" not found');
+                                break;
+                        }
+                        object = parent; 
+                }
+                console.log(object);
 
                 const controls = g_editor.controls;
                 controls.attach(object);
@@ -1593,7 +1619,7 @@ class sceneEditor
 
 
 
-const MAX_HIT_DISTANCE = 1000;
+const MAX_HIT_DISTANCE = 1000; 
 function hit_in_range(intersects)
 {
         for (var hit of intersects)
@@ -1685,7 +1711,7 @@ loadModelButton.addEventListener("click", () => {
         const modelNameInput = document.getElementById("model-name");
         const model_name = modelNameInput.value;
         //console.log(model_name);
-        //load_model(model_name);
+        load_model(model_name);
 });
 
 function load_model(model_name)
@@ -1767,7 +1793,7 @@ function parse_render_component(json)
 
         if (!object)
         {
-                object = loader.parse(json.object);
+                //object = loader.parse(json.object);
         }
 
         //return new TINY.renderComponent(geometry, material, object);
@@ -1783,7 +1809,8 @@ function parse_player(player_json)
 {
         const loader = new THREE.ObjectLoader();
 
-        const render = parse_render_component(player_json.render_component);
+        //const render = parse_render_component(player_json.render_component);
+        const render = null;
         const serialized_position = player_json.serialized_position;
         const collider = parse_collider(player_json.collider_component);
         // TODO(@cobileacd): not sure if this is necessary.
@@ -1801,10 +1828,14 @@ function parse_enemy(enemy_JSON)
 
         const render = parse_render_component(enemy_JSON.render_component);
         const collider = parse_collider(enemy_JSON.collider_component);
+
+        let serialized_position = new THREE.Vector3();
+        if (enemy_JSON.serialized_position != undefined)
+                serialized_position = enemy_JSON.serialized_position;
         // TODO(@cobileacd): not sure if this is necessary.
         const transform = new TINY.transformObject(0, 0, 0); 
 
-        return new classEnemy(render, transform, "enemy", collider);
+        return new classEnemy(render, transform, "enemy", collider, serialized_position);
 }
 
 function parse_enemies(enemies_JSON)
@@ -2011,15 +2042,13 @@ function create_player(sceneGraph)
 
 function createSkybox() 
 {
-        // Create skybox geometry
         const skyboxGeometry = new THREE.BoxGeometry(1000, 1000, 1000);
 
-        // Create custom shader material for skybox
         const skyboxMaterial = new THREE.ShaderMaterial({
                 uniforms: {
                         topColor: { value: new THREE.Color(0x5c54a4) },
                         bottomColor: { value: new THREE.Color(0x070e17) },
-                        gradientStart: { value: 200 } // Lower value means the gradient starts sooner
+                        gradientStart: { value: 300 } 
                 },
                 vertexShader: `
             varying vec3 vWorldPosition;
@@ -2045,6 +2074,7 @@ function createSkybox()
         // Create skybox mesh
         const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
         skybox.userData = { 'isSkybox': true };
+        skybox.name = "skybox";
         sceneElements.sceneGraph.add(skybox);
 
         // Create stars
