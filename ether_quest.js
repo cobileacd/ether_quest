@@ -1741,7 +1741,7 @@ function load_model(model_name)
 }
 
 const topRightText = document.getElementById("top-right-text");
-let help_text = "y: show/hide helpers\nt: switch player/debug\nz: transform\nx: rotate\nc: scale\nv: add collider\n p: save scene\nn: delete obj\nm: copy object";
+let help_text = "y: show/hide helpers\nt: switch player/debug\nz: transform\nx: rotate\nc: scale\nv: add collider\n p: save scene\nn: delete obj\nm: copy object\nspace: attack in play mode";
 topRightText.innerText = help_text;
 
 function ui_update_object_properties(object)
@@ -2071,13 +2071,11 @@ function createSkybox()
                 side: THREE.BackSide
         });
 
-        // Create skybox mesh
         const skybox = new THREE.Mesh(skyboxGeometry, skyboxMaterial);
         skybox.userData = { 'isSkybox': true };
         skybox.name = "skybox";
         sceneElements.sceneGraph.add(skybox);
 
-        // Create stars
         const starGeometry = new THREE.BufferGeometry();
         const starMaterial = new THREE.PointsMaterial({ color: 0xffffff, size: 1 });
 
