@@ -8,20 +8,34 @@
 */
 
 /* FINAL SPRINT:
-- Hide colliders when hiding helpers 
-- Create Anim class for Enemies 
-- Attack Logic for player and enemies 
+- Hide colliders when hiding helpers (DONE)
+- Create Anim class for Enemies (DONE)
+- Attack Logic for player and enemies (Done)
+*/
+
+/* Future Work
+- Refactor!
+- Enemy random spawn
+- More enemies
+- Boss enemy with different attacks
+- Make AI better (patrol behaviour, random walk)
+- Enhance UI
+- Make model loader better
+- Dialog System 
+- Better Performance
+- Power ups 
+- Expand levels
 */
 
 /* TODO(@cobileacd):
- * - Integrate models for enemies (with animations).
+ * - Integrate models for enemies (with animations). (DONE)
  * - Optmize performance. 
  * - Fix player camera (follow player when moved with mouse).
- * - Find a way to save animators. 
+ * - Find a way to save animators. (Didn't need it)
  * - Fix player movement. (DONE)
  * - Add lights to scene, make possibly to choose intensity and color.
  * - Instead of removing/adding helpers each time we switch between show and update, just switch visibility true/false.
-     different from when saving because we don't want them in scene graph.
+     different from when saving because we don't want them in scene graph. (DONE)
  * - On object properties display real world position coords instead of local ones. (DONE)
  * - Fix lights... (DONE)
  * - Fix bug where spot light helpers don't have correct reference to its light. (DONE)
@@ -51,7 +65,7 @@ import Stats from 'stats.js';
 //--------------------------------------------------------------------------------------------------------
 // TODO(@cobileacd): description.
 //  This contains the main engine API that abstracts away the logical components used
-//  in a typical game.
+//  in a typical game. There's a lot of legacy code here. In the future I'll refactor this
 const TINY = 
 {
     transformObject: class
@@ -931,7 +945,7 @@ class classEnemyModel
                         this.skeleton.name = 'anim';
                         this.skeleton.userData = { 'isSkeleton': true };
                         //console.log(this.skeleton);
-                        //sceneElements.sceneGraph.add(this.skeleton);
+                        sceneElements.sceneGraph.add(this.skeleton);
 
                         const animations = gltf.animations;
                         this.mixer = new THREE.AnimationMixer(this.model);
@@ -1340,6 +1354,9 @@ function ShowHelpers(show)
                         obj.visible = show;
                 }
         });
+
+        topRightText.style.display = show ? 'block' : 'none';
+        document.getElementById("model-input-container").style.display = show ? 'flex' : 'none';
 }
 
 function remove_helpers()
@@ -1741,7 +1758,7 @@ function load_model(model_name)
 }
 
 const topRightText = document.getElementById("top-right-text");
-let help_text = "y: show/hide helpers\nt: switch player/debug\nz: transform\nx: rotate\nc: scale\nv: add collider\n p: save scene\nn: delete obj\nm: copy object\nspace: attack in play mode";
+let help_text = "y: show/hide helpers\nt: switch player/debug\nz: transform\nx: rotate\nc: scale\nv: add collider\n p: save scene\nn: delete obj\nm: copy object\nspace: attack in play mode\nwasd: normal movement\nijkl: camera rotation in editor mode";
 topRightText.innerText = help_text;
 
 function ui_update_object_properties(object)
