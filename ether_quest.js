@@ -1219,6 +1219,7 @@ function RemoveAllStaticColliders()
 
 function clone_object(object)
 {
+        RemoveAllStaticColliders();
 
         // special case for lights
         if (object.light != undefined)
@@ -2127,96 +2128,56 @@ function distanceVector( v1, v2 )
 
 // TODO(@cobileacd): This doesn't need to be done every frame, 30 fps should be fine.
 function check_collisions() {
-        const colliders = sceneElements.collider_gos;
+    const colliders = sceneElements.collider_gos;
 
-        for (let i = 0; i < colliders.length; i++) {
-                const obj1 = colliders[i];
-                if (obj1.collider_active != undefined) { if (!obj1.collider_active) continue }
+    for (let i = 0; i < colliders.length; i++) {
+        const obj1 = colliders[i];
+        if (obj1.collider_active != undefined && !obj1.collider_active) continue;
 
-                const y1 = obj1.object.position.y;
+        const rect1 = obj1.object.position.clone();
+        const size1 = new THREE.Vector3();
+        const box1 = new THREE.Box3().setFromObject(obj1.object, true);
+        box1.getSize(size1);
+        const halfSize1 = size1.clone().multiplyScalar(0.5);
 
-                for (let j = i + 1; j < colliders.length; j++) {
-                        const obj2 = colliders[j];
-                        if (obj2.collider_active != undefined) { if (!obj2.collider_active) continue }
-                        const y2 = obj2.object.position.y;
+        for (let j = i + 1; j < colliders.length; j++) {
+            const obj2 = colliders[j];
+            if (obj2.collider_active != undefined && !obj2.collider_active) continue;
 
-                        // Check collisions between circles
-                        if (obj1.collider_component.shape === "circle" && obj2.collider_component.shape === "circle") {
-                                const dist = obj1.object.position.distanceTo(obj2.object.position);
-                                if (dist < obj1.collider_component.radius + obj2.collider_component.radius) {
-                                        const pos1 = obj1.object.position.clone();
-                                        const pos2 = obj2.object.position.clone();
-                                        const dir = pos1.sub(pos2);
-                                        const mag = obj1.collider_component.radius + obj2.collider_component.radius - dist;
-                                        obj1.object.position.add(dir.normalize().multiplyScalar(mag / 2));
-                                        obj2.object.position.add(dir.negate().normalize().multiplyScalar(mag / 2));
-                                        obj1.onCollisionEnter(obj2);
-                                        obj2.onCollisionEnter(obj1);
-                                }
-                        }
+            const rect2 = obj2.object.position.clone();
+            const size2 = new THREE.Vector3();
+            const box2 = new THREE.Box3().setFromObject(obj2.object, true);
+            box2.getSize(size2);
+            const halfSize2 = size2.clone().multiplyScalar(0.5);
 
-                        // Check collisions between rectangles
-                        if (obj1.collider_component.shape === "rect" && obj2.collider_component.shape === "rect") {
-                                const rect1 = obj1.object.position.clone();
-                                const rect2 = obj2.object.position.clone();
-                                
-                                const size1 = new THREE.Vector3();
-                                const size2 = new THREE.Vector3();
-                                // Box from object
-                                const box1 = new THREE.Box3().setFromObject(obj1.object, true); 
-                                const box2 = new THREE.Box3().setFromObject(obj2.object, true); 
-                                box1.getSize(size1);
-                                box2.getSize(size2);
+            const distX = Math.abs(rect1.x - rect2.x);
+            const distZ = Math.abs(rect1.z - rect2.z);
 
-                                const halfSize1 = size1.clone().multiplyScalar(0.5);
-                                const halfSize2 = size2.clone().multiplyScalar(0.5);
+            if (distX < halfSize1.x + halfSize2.x && distZ < halfSize1.z + halfSize2.z) {
+                const overlapX = halfSize1.x + halfSize2.x - distX;
+                const overlapZ = halfSize1.z + halfSize2.z - distZ;
 
-                                const distX = Math.abs(rect1.x - rect2.x);
-                                const distY = Math.abs(rect1.y - rect2.y);
-                                const distZ = Math.abs(rect1.z - rect2.z);
-                                if (distX < halfSize1.x + halfSize2.x && distY < halfSize1.y + halfSize2.y && distZ < halfSize1.z + halfSize2.z) {
-                                        const overlapX = halfSize1.x + halfSize2.x - distX;
-                                        const overlapY = halfSize1.y + halfSize2.y - distY;
-                                        const overlapZ = halfSize1.z + halfSize2.z - distZ;
-                                        if (overlapX < overlapY && overlapX < overlapZ) {
-                                                const dir = new THREE.Vector3(Math.sign(rect1.x - rect2.x), 0, 0);
-
-                                                if (!obj1.isStatic)
-                                                        obj1.object.position.add(dir.multiplyScalar(overlapX / 2));
-                                                if (!obj2.isStatic)
-                                                        obj2.object.position.sub(dir.multiplyScalar(overlapX / 2));
-                                        } else if (overlapY < overlapX && overlapY < overlapZ) {
-                                                const dir = new THREE.Vector3(0, Math.sign(rect1.y - rect2.y), 0);
-
-                                                if (!obj1.isStatic)
-                                                        obj1.object.position.add(dir.multiplyScalar(overlapY / 2));
-                                                if (!obj2.isStatic)
-                                                        obj2.object.position.sub(dir.multiplyScalar(overlapY / 2));
-                                        } else {
-                                                const dir = new THREE.Vector3(0, 0, Math.sign(rect1.z - rect2.z));
-                                                if (!obj1.isStatic)
-                                                        obj1.object.position.add(dir.multiplyScalar(overlapZ / 2));
-                                                if (!obj2.isStatic)
-                                                        obj2.object.position.sub(dir.multiplyScalar(overlapZ / 2));
-                                        }
-                                        
-                                        // NOTE(@cobileacd): if onCollisionEnter is defined.
-                                        if (typeof obj1.onCollisionEnter === 'function')
-                                        {
-                                                obj1.onCollisionEnter(obj2);
-                                        }
-                                        if (typeof obj2.onCollisionEnter === 'function')
-                                        {
-                                                obj2.onCollisionEnter(obj1);
-                                        }
-                                }
-                        }
-
-                        obj1.object.position.setY(y1);
-                        obj2.object.position.setY(y2);
+                if (overlapX < overlapZ) {
+                    const dir = new THREE.Vector3(Math.sign(rect1.x - rect2.x), 0, 0);
+                    if (!obj1.isStatic) obj1.object.position.add(dir.multiplyScalar(overlapX / 2));
+                    if (!obj2.isStatic) obj2.object.position.sub(dir.multiplyScalar(overlapX / 2));
+                } else {
+                    const dir = new THREE.Vector3(0, 0, Math.sign(rect1.z - rect2.z));
+                    if (!obj1.isStatic) obj1.object.position.add(dir.multiplyScalar(overlapZ / 2));
+                    if (!obj2.isStatic) obj2.object.position.sub(dir.multiplyScalar(overlapZ / 2));
                 }
+
+                if (typeof obj1.onCollisionEnter === 'function') {
+                    obj1.onCollisionEnter(obj2);
+                }
+                if (typeof obj2.onCollisionEnter === 'function') {
+                    obj2.onCollisionEnter(obj1);
+                }
+            }
         }
+    }
 }
+
 
 // define camera follow parameters
 const followSpeed = 0.03; // the speed of the camera following the player
